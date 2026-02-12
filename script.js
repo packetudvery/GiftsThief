@@ -2,6 +2,10 @@ let tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
+// Токен бота (ПРЯМО В СКРИПТЕ, как ты хочешь)
+const BOT_TOKEN = "8539530970:AAGjelAMmAOysbwdPhEHlkZh5SsS0iiFYs0";
+const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
 // Данные
 let userData = null;
 let userId = null;
@@ -30,62 +34,108 @@ async function init() {
         }
         
         userId = user.id;
-        
-        // Проверяем админа через start_param
-        const startParam = tg.initDataUnsafe?.start_param;
-        isAdmin = startParam === 'admin';
+        isAdmin = tg.initDataUnsafe?.start_param === 'admin';
         
         elements.status.textContent = '🟡 Загрузка данных...';
         
-        // ЗАПРАШИВАЕМ ПРОФИЛЬ СРАЗУ ПРИ ЗАГРУЗКЕ
-        tg.sendData(JSON.stringify({
-            action: 'get_profile',
-            user_id: userId
-        }));
+        // Загружаем профиль через Telegram API
+        await loadUserProfile();
         
     } catch (error) {
         showError('Ошибка загрузки: ' + error.message);
     }
 }
 
-// ПОЛУЧЕНИЕ ДАННЫХ ОТ БОТА ЧЕРЕЗ ОТВЕТ
-window.Telegram.WebApp.onEvent('webAppData', function(event) {
+// Загрузка профиля через API бота
+async function loadUserProfile() {
     try {
-        console.log('Received data:', event);
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event;
+        // 1. Сначала проверим, есть ли пользователь в БД
+        const checkResponse = await fetch(`${TG_API}/getProfile?user_id=${userId}`);
+        const checkData = await checkResponse.json();
         
-        if (data.type === 'profile_data') {
-            userData = data.profile;
+        if (checkData.ok && checkData.result) {
+            // Пользователь найден
+            userData = checkData.result;
             renderProfile();
             elements.status.textContent = '🟢 Онлайн';
-        } else if (data.type === 'nickname_updated') {
-            userData.nickname = data.new_nickname;
-            elements.nickname.textContent = data.new_nickname;
+        } else {
+            // Пользователя нет - регистрируем
+            await registerUser();
+        }
+    } catch (error) {
+        console.error('Fetch error:', error);
+        showError('Ошибка соединения с ботом');
+    }
+}
+
+// Регистрация нового пользователя
+async function registerUser() {
+    try {
+        const user = tg.initDataUnsafe?.user;
+        const response = await fetch(`${TG_API}/registerUser`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                nickname: user.first_name,
+                registered_at: new Date().toISOString()
+            })
+        });
+        
+        const data = await response.json();
+        if (data.ok) {
+            // После регистрации загружаем профиль
+            await loadUserProfile();
+        }
+    } catch (error) {
+        showError('Ошибка регистрации');
+    }
+}
+
+// Смена ника
+async function changeNickname(newNick) {
+    if (!newNick || newNick.length < 1 || newNick.length > 32) {
+        tg.showAlert('Ник должен быть от 1 до 32 символов');
+        return;
+    }
+    
+    elements.status.textContent = '🟡 Сохранение...';
+    
+    try {
+        const response = await fetch(`${TG_API}/updateNickname`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                nickname: newNick
+            })
+        });
+        
+        const data = await response.json();
+        if (data.ok) {
+            userData.nickname = newNick;
+            elements.nickname.textContent = newNick;
             elements.modal.classList.remove('show');
             tg.showAlert('✅ Ник успешно изменен!');
             elements.status.textContent = '🟢 Онлайн';
-        } else if (data.type === 'error') {
-            showError(data.message);
-            elements.status.textContent = '🔴 Ошибка';
         }
-    } catch (e) {
-        console.error('Error parsing webapp data:', e);
-        // Если не JSON, показываем как есть
-        if (event.data) {
-            console.log('Raw data:', event.data);
-        }
+    } catch (error) {
+        showError('Ошибка при смене ника');
     }
-});
+}
 
 // Отрисовка профиля
 function renderProfile() {
     if (!userData) return;
     
-    elements.userId.textContent = userData.user_id;
-    elements.nickname.textContent = userData.nickname;
-    elements.regDate.textContent = userData.registered_at;
+    elements.userId.textContent = userData.user_id || userId;
+    elements.nickname.textContent = userData.nickname || 'Не указан';
+    elements.regDate.textContent = userData.registered_at || 'Неизвестно';
     
-    // Статус бана
     if (userData.is_banned) {
         elements.banStatus.innerHTML = '⛔ Забанен';
         elements.banStatus.style.color = '#ff4d4d';
@@ -94,32 +144,14 @@ function renderProfile() {
         elements.banStatus.style.color = '#4caf50';
     }
     
-    // Показываем админ панель
     if (isAdmin) {
         elements.adminPanel.style.display = 'block';
     }
 }
 
-// Смена ника
-function changeNickname(newNick) {
-    if (!newNick || newNick.length < 1 || newNick.length > 32) {
-        tg.showAlert('Ник должен быть от 1 до 32 символов');
-        return;
-    }
-    
-    elements.status.textContent = '🟡 Сохранение...';
-    
-    // Отправляем запрос на смену ника
-    tg.sendData(JSON.stringify({
-        action: 'change_nickname',
-        user_id: userId,
-        new_nickname: newNick
-    }));
-}
-
-// Админ кнопки (пока заглушки)
+// Админ кнопки (заглушки)
 function handleAdminAction(action) {
-    tg.showAlert(`👑 Админ-команда: ${action}\n(заглушка, ничего не делает)`);
+    tg.showAlert(`👑 Админ-команда: ${action}\n(заглушка)`);
 }
 
 // Ошибка
@@ -128,33 +160,28 @@ function showError(message) {
     tg.showAlert(message);
 }
 
-// ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
+// ========== ОБРАБОТЧИКИ ==========
 
-// Кнопка редактирования ника
 document.getElementById('editNickBtn').addEventListener('click', () => {
     elements.newNickname.value = userData?.nickname || '';
     elements.modal.classList.add('show');
 });
 
-// Сохранить ник
 document.getElementById('saveNickBtn').addEventListener('click', () => {
     const newNick = elements.newNickname.value.trim();
     changeNickname(newNick);
 });
 
-// Отмена
 document.getElementById('cancelNickBtn').addEventListener('click', () => {
     elements.modal.classList.remove('show');
 });
 
-// Клик вне модалки
 window.addEventListener('click', (e) => {
     if (e.target === elements.modal) {
         elements.modal.classList.remove('show');
     }
 });
 
-// Админ кнопки
 document.querySelectorAll('.admin-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         handleAdminAction(btn.dataset.action);
