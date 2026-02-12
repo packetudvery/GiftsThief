@@ -1,11 +1,14 @@
 let tg = window.Telegram.WebApp;
 tg.ready();
-tg.expand(); // Разворачиваем на весь экран
+tg.expand();
 
 // Данные
 let userData = null;
 let userId = null;
 let isAdmin = false;
+
+// API бота (твой бот должен отвечать на эти запросы)
+const API_BASE = "https://api.telegram.org/bot8539530970:AAGjelAMmAOysbwdPhEHlkZh5SsS0iiFYs0"; // Твой токен
 
 // DOM элементы
 const elements = {
@@ -22,7 +25,6 @@ const elements = {
 // Инициализация
 async function init() {
     try {
-        // Получаем данные пользователя из Telegram
         const user = tg.initDataUnsafe?.user;
         
         if (!user) {
@@ -31,11 +33,14 @@ async function init() {
         }
         
         userId = user.id;
-        isAdmin = tg.initDataUnsafe?.start_param === 'admin'; // Простая проверка
         
-        elements.status.textContent = '🟢 Загрузка данных...';
+        // Проверяем админа через start_param
+        const startParam = tg.initDataUnsafe?.start_param;
+        isAdmin = startParam === 'admin';
         
-        // Загружаем профиль
+        elements.status.textContent = '🟡 Загрузка данных...';
+        
+        // Загружаем реальный профиль из БД
         await loadUserProfile();
         
     } catch (error) {
@@ -43,27 +48,48 @@ async function init() {
     }
 }
 
-// Загрузка профиля
+// Загрузка профиля из БД через бота
 async function loadUserProfile() {
     try {
-        // В реальном боте здесь будет fetch к твоему API
-        // Сейчас используем заглушку
-        setTimeout(() => {
-            // Заглушка данных
-            userData = {
-                user_id: userId,
-                nickname: 'Игрок #' + String(userId).slice(-4),
-                registered_at: new Date().toLocaleDateString('ru-RU'),
-                is_banned: 0
-            };
-            
-            renderProfile();
-        }, 500);
+        // Отправляем запрос боту через WebApp Data
+        tg.sendData(JSON.stringify({
+            action: 'get_profile',
+            user_id: userId
+        }));
+        
+        // Бот ответит через message WebAppData
+        // Этот ответ поймает обработчик ниже
+        
+        elements.status.textContent = '🟡 Ожидание ответа...';
         
     } catch (error) {
         showError('Ошибка загрузки профиля');
     }
 }
+
+// Получение данных от бота
+window.Telegram.WebApp.onEvent('webAppData', function(event) {
+    try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'profile_data') {
+            userData = data.profile;
+            renderProfile();
+            elements.status.textContent = '🟢 Онлайн';
+        } else if (data.type === 'nickname_updated') {
+            userData.nickname = data.new_nickname;
+            elements.nickname.textContent = data.new_nickname;
+            elements.modal.classList.remove('show');
+            tg.showAlert('✅ Ник успешно изменен!');
+            elements.status.textContent = '🟢 Онлайн';
+        } else if (data.type === 'error') {
+            showError(data.message);
+            elements.status.textContent = '🔴 Ошибка';
+        }
+    } catch (e) {
+        console.error('Error parsing webapp data:', e);
+    }
+});
 
 // Отрисовка профиля
 function renderProfile() {
@@ -86,8 +112,6 @@ function renderProfile() {
     if (isAdmin) {
         elements.adminPanel.style.display = 'block';
     }
-    
-    elements.status.textContent = '🟢 Онлайн';
 }
 
 // Смена ника
@@ -99,17 +123,15 @@ async function changeNickname(newNick) {
     
     elements.status.textContent = '🟡 Сохранение...';
     
-    // В реальном боте здесь будет запрос к боту
-    setTimeout(() => {
-        userData.nickname = newNick;
-        elements.nickname.textContent = newNick;
-        elements.modal.classList.remove('show');
-        elements.status.textContent = '🟢 Онлайн';
-        tg.showAlert('✅ Ник успешно изменен!');
-    }, 500);
+    // Отправляем запрос на смену ника
+    tg.sendData(JSON.stringify({
+        action: 'change_nickname',
+        user_id: userId,
+        new_nickname: newNick
+    }));
 }
 
-// Админ кнопки (затычки)
+// Админ кнопки (пока заглушки)
 function handleAdminAction(action) {
     tg.showAlert(`👑 Админ-команда: ${action}\n(заглушка, ничего не делает)`);
     console.log('Admin action:', action);
