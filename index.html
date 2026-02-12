@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой профиль</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Шапка -->
+        <div class="header">
+            <h1>👤 Профиль</h1>
+            <span class="status" id="status">⚪ Загрузка...</span>
+        </div>
+
+        <!-- Аватарка (заглушка) -->
+        <div class="avatar">
+            🎭
+        </div>
+
+        <!-- Данные профиля -->
+        <div class="profile-card">
+            <div class="info-row">
+                <span class="label">🆔 ID:</span>
+                <span class="value" id="user_id">-</span>
+            </div>
+            
+            <div class="info-row nickname-row">
+                <span class="label">📝 Ник:</span>
+                <div class="nickname-container">
+                    <span class="value" id="nickname">-</span>
+                    <button class="edit-btn" id="editNickBtn">✏️</button>
+                </div>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">📅 Регистрация:</span>
+                <span class="value" id="reg_date">-</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="label">🚫 Бан:</span>
+                <span class="value" id="ban_status">-</span>
+            </div>
+        </div>
+
+        <!-- Админ панель (показывается только админам) -->
+        <div id="adminPanel" style="display: none;">
+            <h2>👑 Админ-панель</h2>
+            <div class="admin-buttons">
+                <button class="admin-btn" data-action="stats">📊 Статистика</button>
+                <button class="admin-btn" data-action="users">👥 Список юзеров</button>
+                <button class="admin-btn" data-action="ban">⛔ Бан</button>
+                <button class="admin-btn" data-action="unban">✅ Разбан</button>
+                <button class="admin-btn" data-action="broadcast">📢 Рассылка</button>
+            </div>
+            <p class="note">⚠️ Кнопки-затычки, ничего не делают</p>
+        </div>
+
+        <!-- Модалка смены ника -->
+        <div id="nickModal" class="modal">
+            <div class="modal-content">
+                <h2>✏️ Сменить ник</h2>
+                <input type="text" id="newNickname" placeholder="Введите новый ник" maxlength="32">
+                <div class="modal-buttons">
+                    <button id="saveNickBtn" class="save-btn">Сохранить</button>
+                    <button id="cancelNickBtn" class="cancel-btn">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
