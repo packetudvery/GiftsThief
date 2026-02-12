@@ -7,9 +7,6 @@ let userData = null;
 let userId = null;
 let isAdmin = false;
 
-// API бота (твой бот должен отвечать на эти запросы)
-const API_BASE = "https://api.telegram.org/bot8539530970:AAGjelAMmAOysbwdPhEHlkZh5SsS0iiFYs0"; // Твой токен
-
 // DOM элементы
 const elements = {
     status: document.getElementById('status'),
@@ -40,37 +37,22 @@ async function init() {
         
         elements.status.textContent = '🟡 Загрузка данных...';
         
-        // Загружаем реальный профиль из БД
-        await loadUserProfile();
+        // ЗАПРАШИВАЕМ ПРОФИЛЬ СРАЗУ ПРИ ЗАГРУЗКЕ
+        tg.sendData(JSON.stringify({
+            action: 'get_profile',
+            user_id: userId
+        }));
         
     } catch (error) {
         showError('Ошибка загрузки: ' + error.message);
     }
 }
 
-// Загрузка профиля из БД через бота
-async function loadUserProfile() {
-    try {
-        // Отправляем запрос боту через WebApp Data
-        tg.sendData(JSON.stringify({
-            action: 'get_profile',
-            user_id: userId
-        }));
-        
-        // Бот ответит через message WebAppData
-        // Этот ответ поймает обработчик ниже
-        
-        elements.status.textContent = '🟡 Ожидание ответа...';
-        
-    } catch (error) {
-        showError('Ошибка загрузки профиля');
-    }
-}
-
-// Получение данных от бота
+// ПОЛУЧЕНИЕ ДАННЫХ ОТ БОТА ЧЕРЕЗ ОТВЕТ
 window.Telegram.WebApp.onEvent('webAppData', function(event) {
     try {
-        const data = JSON.parse(event.data);
+        console.log('Received data:', event);
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event;
         
         if (data.type === 'profile_data') {
             userData = data.profile;
@@ -88,6 +70,10 @@ window.Telegram.WebApp.onEvent('webAppData', function(event) {
         }
     } catch (e) {
         console.error('Error parsing webapp data:', e);
+        // Если не JSON, показываем как есть
+        if (event.data) {
+            console.log('Raw data:', event.data);
+        }
     }
 });
 
@@ -115,7 +101,7 @@ function renderProfile() {
 }
 
 // Смена ника
-async function changeNickname(newNick) {
+function changeNickname(newNick) {
     if (!newNick || newNick.length < 1 || newNick.length > 32) {
         tg.showAlert('Ник должен быть от 1 до 32 символов');
         return;
@@ -134,7 +120,6 @@ async function changeNickname(newNick) {
 // Админ кнопки (пока заглушки)
 function handleAdminAction(action) {
     tg.showAlert(`👑 Админ-команда: ${action}\n(заглушка, ничего не делает)`);
-    console.log('Admin action:', action);
 }
 
 // Ошибка
